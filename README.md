@@ -1,14 +1,50 @@
 # circuit-breaker-fn
 
-A Clojure library designed to ... well, that part is up to you.
+Reusable **cicruit-breaker** primitives for Clojure.
 
-## Usage
+<p align="center">
+  <img src="https://cloudandmobileblogcom.files.wordpress.com/2017/04/states.png?w=700"/>
+</p>
+
+## Why 
+
+- [great article](https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker)
+
+- [great book](https://pragprog.com/book/mnee/release-it) (section 5.2)
+
+## Where 
 
 FIXME
 
+## How
+### Primitives
+Three things are needed in order to implement a circuit-breaker:
+
+- State (managed internally)
+- Error handler (how to react on errors)
+- Processing handler (the process we're protecting against) 
+
+Looking at the `circuit-breaker-fn.primitives` namespace, we can see there are exactly three Vars:
+
+- `cb-init` (static map)
+- `cb-error-handler` (is the right error-handler after partially binding all but the last arg)
+- `cb-wrap-handler`  (returns the right processing-handler) 
+
+### Components
+Using the primitives described in the previous section, we can start building more meaningful constructs.
+ 
+ Obviously, the most general/reusable construct we can apply circuit-breaking semantics to, is the function itself:
+ 
+#### cb-fn [f cb-opts]
+Returns a function that wraps \<f\> with circuit-breaker semantics.
+
+#### cb-agent [init & cb-opts]
+Returns an agent implementing circuit-breaker semantics. Certain limitations apply on the returned agent - see doc-string for details.
+ 
+
 ## License
 
-Copyright © 2019 FIXME
+Copyright © 2019 Dimitrios Piliouras
 
 This program and the accompanying materials are made available under the
 terms of the Eclipse Public License 2.0 which is available at
