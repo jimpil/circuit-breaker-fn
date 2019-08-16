@@ -1,6 +1,6 @@
 # circuit-breaker-fn
 
-Reusable **cicruit-breaker** primitives for Clojure.
+Reusable primitives for implementing the **cicruit-breaker** pattern in Clojure.
 
 <p align="center">
   <img src="https://cloudandmobileblogcom.files.wordpress.com/2017/04/states.png?w=700"/>
@@ -21,7 +21,7 @@ FIXME
 Three things are needed in order to implement a circuit-breaker:
 
 - State (managed internally)
-- Error handler (how to react on errors)
+- Error handler (how to react to errors)
 - Processing handler (the process we're protecting against) 
 
 Looking at the `circuit-breaker-fn.primitives` namespace, we can see there are exactly three Vars:
@@ -35,12 +35,16 @@ Using the primitives described in the previous section, we can start building mo
  
  Obviously, the most general/reusable construct we can apply circuit-breaking semantics to, is the function itself:
  
-#### cb-fn [f cb-opts]
+#### cb-fn [f & cb-opts]
 Returns a function that wraps \<f\> with circuit-breaker semantics.
 
 #### cb-agent [init & cb-opts]
-Returns an agent implementing circuit-breaker semantics. Certain limitations apply on the returned agent - see doc-string for details.
+Returns a vector with two elements:
+ - an agent implementing circuit-breaker semantics. Certain limitations apply - see doc-string for details
+ - a function to wrap any function sent to the returned agent
  
+ 
+Non var-arg versions of the above exist (`cb-fn*` \& `cb-agent*`). Specs for `cb-opts` exist as well (see `validation` ns).  
 
 ## License
 

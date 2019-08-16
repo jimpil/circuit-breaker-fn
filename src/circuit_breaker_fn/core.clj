@@ -1,31 +1,63 @@
 (ns circuit-breaker-fn.core
   "See https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker
    for a neat article with diagrams and everything."
-  (:require [circuit-breaker-fn.primitives :as prim]))
+  (:require [circuit-breaker-fn
+             [primitives :as prim]
+             [validation :as v]
+             [util :as ut]]
+            [clojure.spec.alpha :as s])
+  (:import (java.util.concurrent.locks ReentrantLock)))
 
-(defn cb-fn
+(defn cb-fn*
   "Given a <handler> fn, returns a circuit-breaker version of it
-   using the provided <cb-opts> (see `cb-error-handler`/`cb-wrap-handler` for details)."
+   using the provided <cb-opts> (see `cb-error-handler`/`cb-wrap-handler` for details).
+   The only new options are <locking?> & <try-locking?>. Providing one of them
+   will cause <handler> to be called after acquiring, or trying to acquire a lock.
+   Providing both doesn't make much sense, so `locking?` takes precedence."
   [handler {:keys [fail-limit
-                   fail-interval
+                   fail-window
                    success-limit
                    open-timeout
                    drop-fn
-                   delay-fn
-                   ex-fn]
+                   success-block
+                   ex-fn
+                   locking?
+                   try-locking?]
             :as cb-opts}]
+  (v/validate! cb-opts)
+
   (let [CBS (atom prim/cb-init)
-        time-window-nanos (* fail-interval 1000000)
+        time-window-nanos (* fail-window 1000000)
         error-handler (partial prim/cb-error-handler
                                CBS
                                [fail-limit time-window-nanos]
                                open-timeout
                                ex-fn)
-        cb-handler (prim/cb-wrap-handler CBS success-limit drop-fn delay-fn handler)]
-    (fn real-handler [& args]
-      (try (apply cb-handler args)
-           (catch Throwable t
-             (error-handler t))))))
+        cb-handler (prim/cb-wrap-handler CBS success-limit drop-fn success-block handler)
+        lock (when (or locking? try-locking?)
+               (ReentrantLock.))]
+    (if (nil? lock)
+      (fn real-handler [& args]
+        ;; neither locking, nor try-locking
+        (try (apply cb-handler args)
+             (catch Throwable t
+               (error-handler t))))
+      (if locking?
+        (fn real-handler [& args]
+          (try ;; potentially wait for a lock
+            (ut/with-lock lock (apply cb-handler args))
+            (catch Throwable t
+              (error-handler t))))
+        (fn real-handler [& args]
+          (try ;; try to acquire but don't wait for a lock
+            (ut/with-try-lock lock (apply cb-handler args))
+            (catch Throwable t
+              (error-handler t))))))))
+
+(defn cb-fn
+  "Var-arg version of `cb-fn*`."
+  [handler & opts]
+  (cb-fn* handler (apply hash-map opts)))
 
 
 (defn cb-agent*
@@ -40,7 +72,7 @@
 
   <init-state>    - The initial state of the agent.
   <fail-limit>    - see `cb-error-handler`
-  <fail-interval> - see `cb-error-handler`
+  <fail-window> - see `cb-error-handler`
   <success-limit> - see `cb-wrap-handler`
   <success-block> - Amount of artificial delay (in millis) to introduce after each successful
                     call of the fn wrapped by <wrapper>.
@@ -53,38 +85,40 @@
 
   Limitations/advice:
 
-  - You can/should NOT change the error-handler, nor the error-mode of the returned agent.
-  - You can/should NOT set a validator to the returned agent, as it will interfere with the error-handler.
+  - You can NOT change the error-handler, nor the error-mode of the returned agent.
+  - You can/should NOT set a validator to the returned agent, unless you do want errors validation errors to
+    participate in the circuit-breaker, otherwise it will interfere with the agent's custom error-handler.
   - The agent returned already carries some metadata. Make sure they don't get lost. If you want your own metadata
     on the returned agent pass it here as part of cb-params (via the :meta key).
   - De-structure the returned vector as `[agent cb-wrap _]` (i.e. ignore the third element)."
   [init {:keys [fail-limit
-                fail-interval
+                fail-window
                 success-limit
                 success-block
                 open-timeout
                 drop-fn
                 ex-fn
-                meta]}]
+                meta]
+         :as cb-opts}]
+  (v/validate! cb-opts)
+
   (let [CBS (atom prim/cb-init)
-        time-window-nanos (* fail-interval 1000000)
+        time-window-nanos (* fail-window 1000000)
         error-handler* (partial prim/cb-error-handler
                                 CBS
                                 [fail-limit time-window-nanos]
                                 open-timeout
                                 ex-fn)
         ag (agent init
-                  :meta (merge meta {:circuit-breaker? true})  ;; useful meta (see `print-method` for `OnAgent` record)
-                  ;; providing an error-handler returns an agent with error-mode => :continue (never needs restarting)
+                  ;; useful meta for identifying this special agent
+                  :meta (merge meta {::cb? true})
+                  ;; providing an error-handler returns an agent
+                  ;; with error-mode => :continue (never needs restarting)
                   :error-handler #(error-handler* %2))
-        art-delay (if (and (some? success-block)
-                           (pos-int? success-block))
-                    (fn [& _] (Thread/sleep success-block))
-                    (constantly nil))
         drop-fn* (fn [agent-state & args]
                    (apply drop-fn agent-state args)
                    agent-state)
-        ag-f (partial prim/cb-wrap-handler CBS success-limit drop-fn* art-delay)]
+        ag-f (partial prim/cb-wrap-handler CBS success-limit drop-fn* success-block)]
     ;; it is advised to ignore the last element
     ;; destructure like `[agnt cb-wrap _]` for example
     [ag ag-f CBS]))

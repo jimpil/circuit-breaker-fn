@@ -39,6 +39,7 @@
       (swap! CBS assoc :cbs :OPEN)
       (future
         (Thread/sleep open-timeout)
+        ;(println "timeout elapsed")
         (swap! CBS assoc
                :cbs :HALF-OPEN
                :success-count 0))) ;; don't forget to reset this!
@@ -52,36 +53,42 @@
    <CBS> - atom holding all the state required (see `cb-init`).
    <success-limit> - How many successful calls before transitioning from HALF-OPEN => CLOSED
    <drop-fn> - Function to handle all requests while in OPEN state (arg-list per <handler>).
-               If a default value makes sense in your domain this is your chance to use it.                    Can be used for logging.
-   <delay-fn> - Function expected to produce an artificial delay (via `Thread/sleep`) after
-                each successful <handler> call (arg-list per <handler>).
+               If a default value makes sense in your domain this is your chance to use it.
+               Can be used for logging.
+   <success-block> - Function (or positive integer) expected to produce an artificial delay
+                     (via `Thread/sleep`) after each successful <handler> call (arg-list per <handler>).
    <handler> - The underlying processing handler function."
-  [CBS success-limit drop-fn delay-fn handler]
-  (fn [& args]
-    (case (:cbs @CBS)
-      ;; circuit is closed - current flows through
-      :CLOSED (let [ret (apply handler args)]
-                (apply delay-fn args)
-                ret)
-      ;; circuit is open - current does not flow through
-      :OPEN   (apply drop-fn args)
-      ;; circuit is half-open - try to push some current through
-      :HALF-OPEN (try
-                   (let [ret (apply handler args) ;; this is the critical call
-                         {:keys [success-count]} (swap! CBS update :success-count inc)]
-                     (when (>= success-count success-limit) ;; assume the service was fixed
-                       ;; we're about to go back to normal operation (CLOSED state)
-                       ;; reset all state to how they originally were (except success-count obviously)
-                       (swap! CBS assoc
-                              :cbs :CLOSED
-                              :fail-count 0
-                              :last-fail 0))
-                     (apply delay-fn args)
-                     ret)
-                   (catch Throwable t
-                     ;; re-throw the exception after making sure that
-                     ;; the error-handler will transition the state to OPEN
-                     ;; on the very first attempt. That means resetting `last-fail`
-                     ;; but NOT `fail-count`!
-                     (swap! CBS assoc :last-fail 0)
-                     (throw t))))))
+  [CBS success-limit drop-fn success-block handler]
+  (let [delay-fn (if (some? success-block)
+                   (if (fn? success-block)
+                     success-block
+                     (fn [& _] (Thread/sleep success-block)))
+                   (constantly nil))]
+    (fn [& args]
+      (case (:cbs @CBS)
+        ;; circuit is closed - current flows through
+        :CLOSED (let [ret (apply handler args)]
+                  (apply delay-fn args)
+                  ret)
+        ;; circuit is open - current does not flow through
+        :OPEN   (apply drop-fn args)
+        ;; circuit is half-open - try to push some current through
+        :HALF-OPEN (try
+                     (let [ret (apply handler args) ;; this is the critical call
+                           {:keys [success-count]} (swap! CBS update :success-count inc)]
+                       (when (>= success-count success-limit) ;; assume the service was fixed
+                         ;; we're about to go back to normal operation (CLOSED state)
+                         ;; reset all state to how they originally were (except success-count obviously)
+                         (swap! CBS assoc
+                                :cbs :CLOSED
+                                :fail-count 0
+                                :last-fail 0))
+                       (apply delay-fn args)
+                       ret)
+                     (catch Throwable t
+                       ;; re-throw the exception after making sure that
+                       ;; the error-handler will transition the state to OPEN
+                       ;; on the very first attempt. That means resetting `last-fail`
+                       ;; but NOT `fail-count`!
+                       (swap! CBS assoc :last-fail 0)
+                       (throw t)))))))
