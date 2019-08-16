@@ -17,14 +17,13 @@
    Typical usage would involve partially binding all but the last arg
    (the exception itself).
 
-   <CBS> - atom holding all the state required (see `cb-init`).
-   <fail-limit> - How many Exceptions (within <fail-interval>) before transitioning from CLOSED => OPEN.
-   <fail-window-nanos> - Time window (in nanos) in which <fail-limit> has an effect.
+   <CBS>          - atom holding all the state required (see `cb-init`).
+   <fail-limit>   - How many Exceptions (within <fail-interval>) before transitioning from CLOSED => OPEN.
+   <window-nanos> - Time window (in nanos) in which <fail-limit> has an effect.
    <open-timeout> - How long (in millis) to wait before transitioning from OPEN => HALF-OPEN
-   <ex-fn> - Function of 3 args to be called last. Takes the Exception itself (do NOT rethrow),
-             the time it occurred (per `System/nanoTime`) & the current fail count.
-             Can be used for logging."
-  [CBS [fail-limit fail-window-nanos] open-timeout ex-fn ex]
+   <ex-fn>        - Function of 3 args to be called last. Takes the Exception itself (do NOT rethrow),
+                    the time it occurred (per `System/nanoTime`) & the current fail count."
+  [CBS [fail-limit window-nanos] open-timeout ex-fn ex]
   (let [error-time (System/nanoTime)
         previous-fail (:last-fail @CBS)
         {:keys [fail-count cbs]} (swap! CBS #(-> %
@@ -33,13 +32,12 @@
     (when (and (not= :OPEN cbs)           ;; someone else has already done this!
                (>= fail-count fail-limit) ;; over the fail-limit
                (or (zero? previous-fail)  ;; check for interval only when it makes sense
-                   (>= fail-window-nanos (- error-time previous-fail)))) ;; within window?
+                   (>= window-nanos (- error-time previous-fail)))) ;; within window?
       ;; transition to OPEN immediately,
       ;; and to HALF-OPEN after <open-timeout> ms
       (swap! CBS assoc :cbs :OPEN)
       (future
         (Thread/sleep open-timeout)
-        ;(println "timeout elapsed")
         (swap! CBS assoc
                :cbs :HALF-OPEN
                :success-count 0))) ;; don't forget to reset this!
@@ -50,14 +48,13 @@
   "Given a <handler> fn, returns a wrapped version
    of it (with circuit-breaker semantics).
 
-   <CBS> - atom holding all the state required (see `cb-init`).
+   <CBS>           - atom holding all the state required (see `cb-init`).
    <success-limit> - How many successful calls before transitioning from HALF-OPEN => CLOSED
-   <drop-fn> - Function to handle all requests while in OPEN state (arg-list per <handler>).
-               If a default value makes sense in your domain this is your chance to use it.
-               Can be used for logging.
+   <drop-fn>       - Function to handle all requests while in OPEN state (arg-list per <handler>).
+                     If a default value makes sense in your domain this is your chance to use it.
    <success-block> - Function (or positive integer) expected to produce an artificial delay
                      (via `Thread/sleep`) after each successful <handler> call (arg-list per <handler>).
-   <handler> - The underlying processing handler function."
+   <handler>       - The underlying processing handler function."
   [CBS success-limit drop-fn success-block handler]
   (let [delay-fn (if (some? success-block)
                    (if (fn? success-block)

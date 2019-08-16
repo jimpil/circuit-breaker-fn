@@ -20,3 +20,6 @@
           (try ~@body
                (finally
                  (.unlock lockee#))))))
+
+(def millis->nanos
+  (partial * 1000000))

@@ -4,16 +4,17 @@
   (:require [circuit-breaker-fn
              [primitives :as prim]
              [validation :as v]
-             [util :as ut]]
-            [clojure.spec.alpha :as s])
-  (:import (java.util.concurrent.locks ReentrantLock)))
+             [util :as ut]])
+  (:import [java.util.concurrent.locks ReentrantLock]))
 
 (defn cb-fn*
   "Given a <handler> fn, returns a circuit-breaker version of it
    using the provided <cb-opts> (see `cb-error-handler`/`cb-wrap-handler` for details).
    The only new options are <locking?> & <try-locking?>. Providing one of them
-   will cause <handler> to be called after acquiring, or trying to acquire a lock.
-   Providing both doesn't make much sense, so `locking?` takes precedence."
+   will cause <handler> to be called after acquiring (will wait), or trying to
+   acquire a lock (won't wait). Providing both doesn't make much sense, so `locking?`
+   takes precedence. In a typical circuit-breaker scenario, none of them would be needed,
+   simply because <handler> (and its usages) will typically not be racey."
   [handler {:keys [fail-limit
                    fail-window
                    success-limit
@@ -27,10 +28,10 @@
   (v/validate! cb-opts)
 
   (let [CBS (atom prim/cb-init)
-        time-window-nanos (* fail-window 1000000)
+        window-nanos (ut/millis->nanos fail-window)
         error-handler (partial prim/cb-error-handler
                                CBS
-                               [fail-limit time-window-nanos]
+                               [fail-limit window-nanos]
                                open-timeout
                                ex-fn)
         cb-handler (prim/cb-wrap-handler CBS success-limit drop-fn success-block handler)
@@ -68,20 +69,20 @@
                 Super useful for debugging/testing.
                 Should only ever be `deref`-ed (NEVER changed)!
 
-   Requires the following keys:
+   <cb-opts> is expected to contain:
 
-  <init-state>    - The initial state of the agent.
-  <fail-limit>    - see `cb-error-handler`
-  <fail-window> - see `cb-error-handler`
-  <success-limit> - see `cb-wrap-handler`
-  <success-block> - Amount of artificial delay (in millis) to introduce after each successful
-                    call of the fn wrapped by <wrapper>.
-                  - If provided, must be accounted for in <fail-interval>. Useful as a basic rate-limiter.
-  <open-timeout>  - see `cb-error-handler`
-  <drop-fn>       - see `cb-wrap-handler`
-  <ex-fn>         - see `cb-error-handler`
+  :init-state    - The initial state of the agent.
+  :fail-limit    - see `cb-error-handler`
+  :fail-window   - see `cb-error-handler`
+  :success-limit - see `cb-wrap-handler`
+  :open-timeout  - see `cb-error-handler`
+  :drop-fn       - see `cb-wrap-handler`
+  :ex-fn         - see `cb-error-handler`
 
-  Can optionally take a :meta key
+  Can optionally contain:
+
+  :meta          - a subset of the agent's final metadata
+  :success-block - see `cb-wrap-handler` (if provided, must be accounted for in <fail-window>).
 
   Limitations/advice:
 
@@ -103,10 +104,10 @@
   (v/validate! cb-opts)
 
   (let [CBS (atom prim/cb-init)
-        time-window-nanos (* fail-window 1000000)
+        window-nanos (ut/millis->nanos fail-window)
         error-handler* (partial prim/cb-error-handler
                                 CBS
-                                [fail-limit time-window-nanos]
+                                [fail-limit window-nanos]
                                 open-timeout
                                 ex-fn)
         ag (agent init
