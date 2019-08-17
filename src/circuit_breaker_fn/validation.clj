@@ -1,5 +1,7 @@
 (ns circuit-breaker-fn.validation
-  (:require [clojure.spec.alpha :as s]))
+  (:require [clojure.spec.alpha :as s]
+            [circuit-breaker-fn.util :as ut])
+  (:import (java.util.concurrent TimeUnit)))
 
 (s/def ::fail-limit    pos-int?)
 (s/def ::fail-window   pos-int?)
@@ -10,6 +12,8 @@
 (s/def ::locking?      boolean?)
 (s/def ::try-locking?  boolean?)
 (s/def ::meta          map?)
+(s/def ::timeout-unit      (set (keys ut/time-units)))
+(s/def ::fail-window-unit  (set (keys ut/time-units)))
 (s/def ::success-block
   (s/or :sleep-millis (complement neg?)
         :block-fn     fn?))
@@ -24,6 +28,8 @@
           :opt-un [::success-block
                    ::locking?
                    ::try-locking?
+                   ::timeout-unit
+                   ::fail-window-unit
                    ::meta]))
 
 (defn validate!

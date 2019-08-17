@@ -1,5 +1,6 @@
 (ns circuit-breaker-fn.util
-  (:import [java.util.concurrent.locks ReentrantLock]))
+  (:import [java.util.concurrent.locks ReentrantLock]
+           (java.util.concurrent TimeUnit)))
 
 (defmacro with-lock
   "Runs <body> after calling `.lock()` on the provided lock."
@@ -21,5 +22,15 @@
                (finally
                  (.unlock lockee#))))))
 
-(def millis->nanos
-  (partial * 1000000))
+(defonce time-units
+  {:micros  TimeUnit/MICROSECONDS
+   :millis  TimeUnit/MILLISECONDS
+   :seconds TimeUnit/SECONDS
+   :minutes TimeUnit/MINUTES
+   :hours   TimeUnit/HOURS
+   :days    TimeUnit/DAYS})
+
+(defn nanos-from
+  "Returns the nanoseconds in <n> time <unit>."
+  ^long [unit n]
+  (.convert TimeUnit/NANOSECONDS n (time-units unit)))

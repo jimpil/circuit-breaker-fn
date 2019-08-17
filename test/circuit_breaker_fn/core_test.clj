@@ -100,7 +100,7 @@
       (send-off a (wrap inc-v*))
       (send-off a (wrap inc-v*))
       (send-off a (wrap inc-v*))
-      ;(Thread/sleep 200)
+      (Thread/sleep 100)
       ;(is (= :CLOSED (:cbs @CBS-atom)))
 
       (is (= 3 (:v @a)))

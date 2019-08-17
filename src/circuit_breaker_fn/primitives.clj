@@ -1,4 +1,5 @@
-(ns circuit-breaker-fn.primitives)
+(ns circuit-breaker-fn.primitives
+  (:import (java.util.concurrent TimeUnit)))
 
 ;; A circuit-breaker is conceptually made up of 3 pieces:
 ; - an internal state    (CLOSED, OPEN, HALF-OPEN)
@@ -18,12 +19,13 @@
    (the exception itself).
 
    <CBS>          - atom holding all the state required (see `cb-init`).
-   <fail-limit>   - How many Exceptions (within <fail-interval>) before transitioning from CLOSED => OPEN.
+   <fail-limit>   - How many Exceptions (within <window-nanos>) before transitioning from CLOSED => OPEN.
    <window-nanos> - Time window (in nanos) in which <fail-limit> has an effect.
-   <open-timeout> - How long (in millis) to wait before transitioning from OPEN => HALF-OPEN
+   <open-timeout> - How long (in <timeout-unit>) to wait before transitioning from OPEN => HALF-OPEN
+   <timeout-unit> - One of the keys in `util/time-units` (defaults to `:millis`).
    <ex-fn>        - Function of 3 args to be called last. Takes the Exception itself (do NOT rethrow),
                     the time it occurred (per `System/nanoTime`) & the current fail count."
-  [CBS [fail-limit window-nanos] open-timeout ex-fn ex]
+  [CBS [fail-limit window-nanos] [open-timeout ^TimeUnit time-unit] ex-fn ex]
   (let [error-time (System/nanoTime)
         previous-fail (:last-fail @CBS)
         {:keys [fail-count cbs]} (swap! CBS #(-> %
@@ -37,11 +39,11 @@
       ;; and to HALF-OPEN after <open-timeout> ms
       (swap! CBS assoc :cbs :OPEN)
       (future
-        (Thread/sleep open-timeout)
+        (.sleep time-unit open-timeout)
         (swap! CBS assoc
                :cbs :HALF-OPEN
                :success-count 0))) ;; don't forget to reset this!
-    ;; let the caller decide how to handle exceptions
+    ;; let the caller decide what to return
     (ex-fn ex error-time fail-count)))
 
 (defn cb-wrap-handler

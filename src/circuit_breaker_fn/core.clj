@@ -17,8 +17,10 @@
    simply because <handler> (and its usages) will typically not be racey."
   [handler {:keys [fail-limit
                    fail-window
+                   fail-window-unit
                    success-limit
                    open-timeout
+                   timeout-unit
                    drop-fn
                    success-block
                    ex-fn
@@ -28,11 +30,12 @@
   (v/validate! cb-opts)
 
   (let [CBS (atom prim/cb-init)
-        window-nanos (ut/millis->nanos fail-window)
+        window-nanos (ut/nanos-from (or fail-window-unit :millis) fail-window)
+        timeout-unit (ut/time-units (or timeout-unit :millis))
         error-handler (partial prim/cb-error-handler
                                CBS
                                [fail-limit window-nanos]
-                               open-timeout
+                               [open-timeout timeout-unit]
                                ex-fn)
         cb-handler (prim/cb-wrap-handler CBS success-limit drop-fn success-block handler)
         lock (when (or locking? try-locking?)
@@ -94,9 +97,11 @@
   - De-structure the returned vector as `[agent cb-wrap _]` (i.e. ignore the third element)."
   [init {:keys [fail-limit
                 fail-window
+                fail-window-unit
                 success-limit
                 success-block
                 open-timeout
+                timeout-unit
                 drop-fn
                 ex-fn
                 meta]
@@ -104,11 +109,12 @@
   (v/validate! cb-opts)
 
   (let [CBS (atom prim/cb-init)
-        window-nanos (ut/millis->nanos fail-window)
+        window-nanos (ut/nanos-from (or fail-window-unit :millis) fail-window)
+        timeout-unit (ut/time-units (or timeout-unit :millis))
         error-handler* (partial prim/cb-error-handler
                                 CBS
                                 [fail-limit window-nanos]
-                                open-timeout
+                                [open-timeout timeout-unit]
                                 ex-fn)
         ag (agent init
                   ;; useful meta for identifying this special agent

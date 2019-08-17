@@ -28,7 +28,9 @@ Looking at the `circuit-breaker-fn.primitives` namespace, we can see there are e
 
 - `cb-init` (static map)
 - `cb-error-handler` (is the right error-handler after partially binding all but the last arg)
-- `cb-wrap-handler`  (returns the right processing-handler) 
+- `cb-wrap-handler`  (returns the right processing-handler)
+
+These are needed for building a complete circuit-breaker component. 
 
 ### Components
 Using the primitives described in the previous section, we can start building more meaningful constructs.
@@ -38,14 +40,29 @@ Using the primitives described in the previous section, we can start building mo
 #### cb-fn [f & cb-opts]
 Returns a function that wraps \<f\> with circuit-breaker semantics.
 
+#### cb-opts
+- `fail-limit`: How many Exceptions (within <time-window>) before transitioning from _CLOSED_ => _OPEN_. 
+- `fail-window`: Time window (in `fail-window-unit`) in which `fail-limit` has an effect.
+- `fail-window-unit`: One of `#{:micros :millis :seconds :minutes :hours :days}`.
+- `open-timeout`: How long (in `timeout-unit`) to wait before transitioning from _OPEN_ => _HALF-OPEN_.
+- `timeout-unit`: Same as `fail-window-unit.
+- `success-limit`: How many successful calls before transitioning from _HALF-OPEN_ => _CLOSED_.
+- `success-block`: Function (or positive integer) expected to produce an artificial delay (via `Thread/sleep`) after each successful call to `f`.
+- `drop-fn`: Function to handle all requests while in _OPEN_ state (arg-list per <f>). If a default value makes sense in your domain this is your chance to use it.
+- `ex-fn`: Function of 3 args to be called last when handling errors. Takes the Exception itself (do NOT rethrow it!), the time it occurred (per `System/nanoTime`) & the current fail count.
+- `locking?`: Boolean indicating whether the handler that wraps `f` should run after acquiring a lock (will wait for it). 
+- `try-locking?`: Boolean indicating whether the handler that wraps `f` should run after trying to acquire a lock (will NOT run if it fails to acquire one).
+
 #### cb-agent [init & cb-opts]
 Returns a vector with two elements:
  - an agent implementing circuit-breaker semantics. Certain limitations apply - see doc-string for details
  - a function to wrap any function sent to the returned agent
  
- 
-Non var-arg versions of the above exist (`cb-fn*` \& `cb-agent*`). Specs for `cb-opts` exist as well (see `validation` ns).  
+#### cb-opts 
+Same options as per `cb-fn`, apart from the last two (`locking?`/`try-locking?`), simply because these don't make sense in the context of an agent (which has its own atomic-transition semantics).
 
+All options are spec-ed and validated (see `validation.clj`). If validation fails an `ex-info` carrying the result of `s/explain-data` is thrown. 
+ 
 ## License
 
 Copyright © 2019 Dimitrios Piliouras
