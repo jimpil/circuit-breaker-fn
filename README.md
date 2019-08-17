@@ -47,7 +47,7 @@ Returns a function that wraps \<f\> with circuit-breaker semantics.
 - `open-timeout`: How long (in `timeout-unit`) to wait before transitioning from _OPEN_ => _HALF-OPEN_.
 - `timeout-unit`: Same as `fail-window-unit.
 - `success-limit`: How many successful calls before transitioning from _HALF-OPEN_ => _CLOSED_.
-- `success-block`: Function (or positive integer) expected to produce an artificial delay (via `Thread/sleep`) after each successful call to `f`.
+- `success-block`: Function (or positive integer) expected to produce an artificial delay (via `Thread/sleep`) after each successful call to `f`. If provided MUST be accounted for in `fail-window`!
 - `drop-fn`: Function to handle all requests while in _OPEN_ state (arg-list per <f>). If a default value makes sense in your domain this is your chance to use it.
 - `ex-fn`: Function of 3 args to be called last when handling errors. Takes the Exception itself (do NOT rethrow it!), the time it occurred (per `System/nanoTime`) & the current fail count.
 - `locking?`: Boolean indicating whether the handler that wraps `f` should run after acquiring a lock (will wait for it). 
