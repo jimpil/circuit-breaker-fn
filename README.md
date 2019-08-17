@@ -1,6 +1,6 @@
 # circuit-breaker-fn
 
-Reusable primitives for implementing the **cicruit-breaker** pattern in Clojure, plus two concrete implementations (`fn`/`agent`).
+Reusable primitives for implementing the **cicruit-breaker** pattern in Clojure, plus two concrete implementations (`cb-fn`/`cb-agent`).
 
 <p align="center">
   <img src="https://cloudandmobileblogcom.files.wordpress.com/2017/04/states.png?w=700"/>
