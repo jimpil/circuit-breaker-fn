@@ -8,9 +8,8 @@ Reusable primitives for implementing the **cicruit-breaker** pattern in Clojure,
 
 ## Why 
 
-- [great article](https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker)
-
 - [great book](https://pragprog.com/book/mnee/release-it) (section 5.2)
+- [great article](https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker)
 
 ## Where 
 
@@ -59,9 +58,14 @@ Returns a vector with two elements:
  - a function to wrap any function sent to the returned agent
  
 #### cb-opts 
-Same options as per `cb-fn`, apart from the last two (`locking?`/`try-locking?`), simply because these don't make sense in the context of an agent (which has its own atomic-transition semantics).
+Same options as per `cb-fn`, apart from the last two (`locking?`/`try-locking?`), simply because these don't make sense in the context of an agent (which queues actions).
 
-All options are spec-ed and validated (see `validation.clj`). If validation fails an `ex-info` carrying the result of `s/explain-data` is thrown. 
+All options are spec-ed and validated (see `validation.clj`). If validation fails, an `ex-info` carrying the result of `s/explain-data` is thrown. 
+
+## Alternatives 
+
+- [diehard](https://github.com/sunng87/diehard)
+- [circuit-breaker](https://github.com/josephwilk/circuit-breaker)
  
 ## License
 
