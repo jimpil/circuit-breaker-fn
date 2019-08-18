@@ -1,6 +1,5 @@
 (ns circuit-breaker-fn.core
-  "See https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker
-   for a neat article with diagrams and everything."
+  "Main `circuit-breaker-fn` namespace. If not implementing your own constructs, this is all you need (otherwise see primitives.clj)."
   (:require [circuit-breaker-fn
              [primitives :as prim]
              [validation :as v]
@@ -8,13 +7,29 @@
   (:import [java.util.concurrent.locks ReentrantLock]))
 
 (defn cb-fn*
-  "Given a <handler> fn, returns a circuit-breaker version of it
-   using the provided <cb-opts> (see `cb-error-handler`/`cb-wrap-handler` for details).
-   The only new options are <locking?> & <try-locking?>. Providing one of them
-   will cause <handler> to be called after acquiring (will wait), or trying to
-   acquire a lock (won't wait). Providing both doesn't make much sense, so `locking?`
-   takes precedence. In a typical circuit-breaker scenario, none of them would be needed,
-   simply because <handler> (and its usages) will typically not be racey."
+  "Given a <handler> fn, returns a circuit-breaker version of it using the  provided <cb-opts>.
+
+   <cb-opts> is expected to contain:
+
+     :fail-limit    - see `primitives/cb-error-handler`
+     :fail-window   - Time-window in which :fail-limit has an effect (per `:fail-window-unit`).
+     :success-limit - see `primitives/cb-wrap-handler`
+     :open-timeout  - see `primitives/cb-error-handler`
+     :drop-fn       - see `primitives/cb-wrap-handler`
+     :ex-fn         - see `primitives/cb-error-handler`
+
+   Can optionally contain:
+
+     :fail-window-unit - Time-unit for :fail-window (see keys of `utils/time-units`).
+     :timeout-unit     - Time-unit for :open-timeout (see keys of `utils/time-units`).
+     :locking?         - boolean indicating whether <handler> should be called after
+                         successfully acquiring a lock (will wait).
+     :try-locking?     - boolean indicating whether <handler> should be called after
+                         trying to acquire a lock (will NOT wait).
+
+   Providing both `locking?` & `try-locking?` doesn't make much sense, so `locking?`
+   takes precedence. In a typical circuit-breaker scenario, none of them would be
+   needed, simply because <handler> (and its usage) will typically not be racy."
   [handler {:keys [fail-limit
                    fail-window
                    fail-window-unit
@@ -38,8 +53,7 @@
                                [open-timeout timeout-unit]
                                ex-fn)
         cb-handler (prim/cb-wrap-handler CBS success-limit drop-fn success-block handler)
-        lock (when (or locking? try-locking?)
-               (ReentrantLock.))]
+        lock (when (or locking? try-locking?) (ReentrantLock.))]
     (if (nil? lock)
       (fn real-handler [& args]
         ;; neither locking, nor try-locking
@@ -66,26 +80,26 @@
 
 (defn cb-agent*
   "Returns a vector of three elements `[agent wrapper cbs-atom]`.
-   <agent>    - agent implementing circuit-breaking semantics
-   <wrapper>  - function to call with your send-fn as its argument - returns the correct fn to send to <agent>
-   <cbs-atom> - an atom holding the internal state of the circuit-breaker (4 keys).
-                Super useful for debugging/testing.
-                Should only ever be `deref`-ed (NEVER changed)!
+   <agent>    - agent implementing circuit-breaking semantics (initialised with <init>).
+   <wrapper>  - function to call with your send-fn as its argument - returns the correct fn to send to <agent>.
+   <cbs-atom> - an atom holding the internal state of the circuit-breaker.
+                Super useful for debugging/testing. Should only ever be `deref`-ed (NEVER changed)!
 
    <cb-opts> is expected to contain:
 
-  :init-state    - The initial state of the agent.
-  :fail-limit    - see `cb-error-handler`
-  :fail-window   - see `cb-error-handler`
-  :success-limit - see `cb-wrap-handler`
-  :open-timeout  - see `cb-error-handler`
-  :drop-fn       - see `cb-wrap-handler`
-  :ex-fn         - see `cb-error-handler`
+    :fail-limit    - see `primitives/cb-error-handler`
+    :fail-window   - Time-window in which :fail-limit has an effect (per `:fail-window-unit`).
+    :success-limit - see `primitives/cb-wrap-handler`
+    :open-timeout  - see `primitives/cb-error-handler`
+    :drop-fn       - see `primitives/cb-wrap-handler`
+    :ex-fn         - see `primitives/cb-error-handler`
 
   Can optionally contain:
 
-  :meta          - a subset of the agent's final metadata
-  :success-block - see `cb-wrap-handler` (if provided, must be accounted for in <fail-window>).
+  :fail-window-unit - Time-unit for :fail-window (see keys of `utils/time-units`).
+  :timeout-unit     - Time-unit for :open-timeout (see keys of `utils/time-units`).
+  :success-block    - see `primitives/cb-wrap-handler`
+  :meta             - a subset of the agent's final metadata
 
   Limitations/advice:
 
@@ -131,7 +145,6 @@
     [ag ag-f CBS]))
 
 (defn cb-agent
-  "Var-arg version of `cb-agent*`, so that it resembles
-   `clojure.core/agent` wrt to arg-list."
+  "Var-arg version of `cb-agent*`."
   [init & opts]
   (cb-agent* init (apply hash-map opts)))

@@ -1,7 +1,6 @@
 (ns circuit-breaker-fn.validation
   (:require [clojure.spec.alpha :as s]
-            [circuit-breaker-fn.util :as ut])
-  (:import (java.util.concurrent TimeUnit)))
+            [circuit-breaker-fn.util :as ut]))
 
 (s/def ::fail-limit    pos-int?)
 (s/def ::fail-window   pos-int?)
@@ -12,8 +11,9 @@
 (s/def ::locking?      boolean?)
 (s/def ::try-locking?  boolean?)
 (s/def ::meta          map?)
-(s/def ::timeout-unit      (set (keys ut/time-units)))
-(s/def ::fail-window-unit  (set (keys ut/time-units)))
+(s/def ::time-unit     (set (keys ut/time-units)))
+(s/def ::timeout-unit      ::time-unit)
+(s/def ::fail-window-unit  ::time-unit)
 (s/def ::success-block
   (s/or :sleep-millis (complement neg?)
         :block-fn     fn?))
@@ -36,4 +36,4 @@
   [opts]
   (when-some [problems (s/explain-data ::cb-opts opts)]
     (throw
-      (ex-info "Non-conforming parameters provided..." problems))))
+      (ex-info "Non-conforming parameters provided!" problems))))

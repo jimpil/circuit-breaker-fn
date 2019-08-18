@@ -11,6 +11,9 @@ Reusable primitives for implementing the **cicruit-breaker** pattern in Clojure,
 - [great book](https://pragprog.com/book/mnee/release-it) (section 5.2)
 - [great article](https://docs.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker)
 
+#### TL;DR
+The Circuit-breaker pattern lets you protect against some process that is likely to fail, and provides _wait-for-recovery_ semantics for when that happens (assuming recovery is indeed possible). Anything that goes _out-of-process_ (recoverable remote service/drive) is a good candidate for wrapping with a circuit-breaker. For things that are _in-process_ it may be an overkill, but ultimately, that will depend on the actual use-case.
+
 ## Where 
 
 FIXME
@@ -29,7 +32,7 @@ Looking at the `circuit-breaker-fn.primitives` namespace, we can see there are e
 - `cb-error-handler` (is the right error-handler after partially binding all but the last arg)
 - `cb-wrap-handler`  (returns the right processing-handler)
 
-These are needed for building a complete circuit-breaker component. 
+The above are needed for building a complete circuit-breaker component. 
 
 ### Components
 Using the primitives described in the previous section, we can start building more meaningful constructs.
@@ -55,12 +58,15 @@ Returns a function that wraps \<f\> with circuit-breaker semantics.
 #### cb-agent [init & cb-opts]
 Returns a vector with two elements:
  - an agent implementing circuit-breaker semantics. Certain limitations apply - see doc-string for details
- - a function to wrap any function sent to the returned agent
+ - a function to wrap any function destined to be sent to the returned agent
  
 #### cb-opts 
 Same options as per `cb-fn`, apart from the last two (`locking?`/`try-locking?`), simply because these don't make sense in the context of an agent (which queues actions).
 
 All options are spec-ed and validated (see `validation.clj`). If validation fails, an `ex-info` carrying the result of `s/explain-data` is thrown. 
+
+## Requirements 
+As a result of using `clojure.spec` for validation, the minimum Clojure version that will work is `1.9.0`. 
 
 ## Alternatives 
 
