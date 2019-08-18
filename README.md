@@ -15,8 +15,8 @@ Reusable primitives for implementing the **cicruit-breaker** pattern in Clojure,
 The Circuit-breaker pattern lets you protect against some process that is likely to fail, and provides _wait-for-recovery_ semantics for when that happens (assuming recovery is indeed possible). Anything that goes _out-of-process_ (recoverable remote service/drive) is a good candidate for wrapping with a circuit-breaker. For things that are _in-process_ it may be an overkill, but ultimately, that will depend on the actual use-case.
 
 ## Where 
+![](https://clojars.org/circuit-breaker-fn/latest-version.svg)
 
-FIXME
 
 ## How
 ### Primitives
