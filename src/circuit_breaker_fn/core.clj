@@ -106,9 +106,9 @@
   - You can NOT change the error-handler, nor the error-mode of the returned agent.
   - You can/should NOT set a validator to the returned agent, unless you do want errors validation errors to
     participate in the circuit-breaker, otherwise it will interfere with the agent's custom error-handler.
-  - The agent returned already carries some metadata. Make sure they don't get lost. If you want your own metadata
-    on the returned agent pass it here as part of cb-params (via the :meta key).
-  - De-structure the returned vector as `[agent cb-wrap _]` (i.e. ignore the third element)."
+  - The agent returned already carries some metadata. Make sure they don't get lost. If you want your own
+    metadata on the returned agent pass it here as part of cb-params (via the :meta key).
+  - De-structure the returned vector as `[agent cb-wrap]` (i.e. ignore the third element)."
   [init {:keys [fail-limit
                 fail-window
                 fail-window-unit
