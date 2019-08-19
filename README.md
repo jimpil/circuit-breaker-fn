@@ -72,6 +72,8 @@ As a result of using `clojure.spec` for validation, the minimum Clojure version 
 
 - [diehard](https://github.com/sunng87/diehard)
 - [circuit-breaker](https://github.com/josephwilk/circuit-breaker)
+
+As far as a comparison goes (between `circuit-breaker-fn` VS the above two), I'm afraid I'm not the right person to provide it, simply because not only I've not used them, but also because I would be terribly biased. I guess I wanted a pure Clojure solution that is highly configurable, and exposes the primitives themselves (as opposed to just the higher-level constructs). Both `diehard` and `Hystrix` (which is deprecated BTW) are Java (or depend on Java libs), and have far greater scope than `circuit-breaker-fn`.`circuit-breaker` is all Clojure, and I did consider it, but it seemed sort of tricky to cleanly extend the impl to agents, and also didn't seem to provide all the knobs I was after. To be clear, that's NOT to say that it's not a good library - I just had a different vision. 
  
 ## License
 
